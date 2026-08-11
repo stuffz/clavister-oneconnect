@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Clavister OneConnect
+GenericName=VPN Client
+Comment=Connect to Clavister OneConnect and other AnyConnect gateways
+Exec=oneconnect-gui
+Icon=oneconnect
+Terminal=false
+Categories=Network;Security;System;Qt;
+Keywords=VPN;AnyConnect;OpenConnect;Clavister;
+StartupNotify=true

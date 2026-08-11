@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC
+ "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/software/polkit/policyconfig-1.dtd">
+
+<!--
+  Policy for the privileged helper.
+
+  The helper is the only component that runs as root. It creates the tun device
+  and runs vpnc-script; everything else - TLS, authentication, the UI, the
+  keychain - stays in the unprivileged process. See docs/PRIVILEGE.md.
+
+  auth_admin_keep rather than auth_admin: authenticating once per session is the
+  usual expectation for a VPN client that may reconnect several times, and the
+  helper exits when the tunnel does, so nothing privileged lingers between
+  connections.
+-->
+<policyconfig>
+
+  <vendor>clavister-oneconnect</vendor>
+  <vendor_url>https://github.com/stuffz/clavister-oneconnect</vendor_url>
+  <icon_name>oneconnect</icon_name>
+
+  <action id="io.github.stuffz.oneconnect.helper">
+    <description>Configure a VPN tunnel</description>
+    <description xml:lang="sv">Konfigurera en VPN-tunnel</description>
+    <message>Authentication is required to create the VPN tunnel interface</message>
+    <message xml:lang="sv">Autentisering krävs för att skapa VPN-tunnelns nätverksgränssnitt</message>
+
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/local/lib/oneconnect/oneconnect-helper</annotate>
+    <annotate key="org.freedesktop.policykit.exec.allow_gui">true</annotate>
+  </action>
+
+</policyconfig>

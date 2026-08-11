@@ -1,0 +1,41 @@
+# Run with: make lint
+#
+# clang-diagnostic-* is included on purpose: it is what surfaces compiler
+# warnings such as -Wshadow, which a clang-tidy-only run would otherwise miss.
+Checks: >
+  -*,
+  clang-diagnostic-*,
+  clang-analyzer-*,
+  bugprone-*,
+  performance-*,
+  portability-*,
+  misc-*,
+  cert-*,
+  -bugprone-easily-swappable-parameters,
+  -misc-non-private-member-variables-in-classes,
+  -misc-const-correctness,
+  -misc-include-cleaner,
+  -performance-avoid-endl,
+  -performance-enum-size,
+  -portability-avoid-pragma-once
+
+# Why the exclusions:
+#
+#   misc-non-private-member-variables-in-classes
+#                               TunnelInfo, KernelRoute and ReconciledRoute are
+#                               plain data carriers; accessors would be noise.
+#   misc-const-correctness      Advises const on the openconnect vpninfo handle
+#                               and on std::lock_guard, where it is wrong.
+#   misc-include-cleaner        Cannot follow openconnect.h's conditional
+#                               typedefs and reports its symbols as unused.
+#   performance-avoid-endl      The logger wants endl's flush so output appears
+#                               immediately when piped or when the tunnel dies.
+#   performance-enum-size       Two small enums, neither stored in bulk.
+#   bugprone-easily-swappable-parameters
+#                               Hits the two-string prompt signatures, which are
+#                               clear enough at the call site.
+#   portability-avoid-pragma-once  Project-wide convention; every targeted
+#                               compiler supports it.
+
+HeaderFilterRegex: 'src/.*'
+WarningsAsErrors: ''

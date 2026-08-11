@@ -1,0 +1,43 @@
+# Maintainer: stuffz
+#
+# Build and install:
+#   cd packaging/arch && makepkg -si
+
+pkgname=clavister-oneconnect-git
+_pkgname=clavister-oneconnect
+pkgver=r1
+pkgrel=1
+pkgdesc="VPN client for Clavister OneConnect gateways, built on libopenconnect"
+arch=('x86_64')
+url="https://github.com/stuffz/clavister-oneconnect"
+license=('MIT')
+# 'vpnc' is what ships /etc/vpnc/vpnc-script on Arch. There is no
+# 'vpnc-scripts' package here -- that is the Debian/Ubuntu name.
+depends=('openconnect' 'vpnc' 'yaml-cpp' 'qt6-base' 'libsecret')
+makedepends=('git' 'gcc' 'make' 'pkgconf')
+optdepends=('polkit: graphical password prompt for the GUI launcher')
+provides=("$_pkgname")
+conflicts=("$_pkgname")
+source=("$_pkgname::git+file://$(realpath ../..)")
+sha256sums=('SKIP')
+
+pkgver() {
+    cd "$srcdir/$_pkgname"
+    printf "r%s.%s" "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
+}
+
+build() {
+    cd "$srcdir/$_pkgname"
+    make GIT_HASH="$(git rev-parse --short HEAD)"
+}
+
+package() {
+    cd "$srcdir/$_pkgname"
+    make DESTDIR="$pkgdir" PREFIX=/usr install
+    install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$_pkgname/LICENSE"
+    install -Dm644 README.md "$pkgdir/usr/share/doc/$_pkgname/README.md"
+
+    for doc in docs/*.md; do
+        install -Dm644 "$doc" "$pkgdir/usr/share/doc/$_pkgname/$doc"
+    done
+}

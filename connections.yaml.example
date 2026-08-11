@@ -1,0 +1,63 @@
+# clavister-oneconnect connections
+#
+# Copy to ~/.config/clavister-oneconnect/connections.yaml
+#
+# Shared by both binaries: the GUI edits this file, and the console client reads
+# it via --profile. `oneconnect --list` shows what is saved.
+#
+# NO CREDENTIALS LIVE HERE. Username is stored because it is a convenience and
+# not a secret; password and one-time code are asked for on every connection.
+# A cached OTP is a spent OTP -- see docs/CLAVISTER.md.
+
+version: 1
+
+connections:
+  - name: Work
+    # The gateway FQDN. Use the name, never an IP address: a gateway can be
+    # configured to answer only to its own hostname, and connecting by IP then
+    # fails with a bare HTTP 500 *after* login succeeds.
+    gateway: vpn.example.com
+
+    # anyconnect (default), nc, gp, pulse, f5, fortinet, array.
+    # Only anyconnect is tested.
+    protocol: anyconnect
+
+    # Offered as the default at the login prompt. Optional.
+    username: yourname
+
+    # Attempt the DTLS/UDP data path. Faster when it works, frequently blocked;
+    # false makes everything run over TLS without waiting for a timeout.
+    dtls: true
+
+    # Connect this profile when the GUI starts. Only the first one wins.
+    autoconnect: false
+
+    # Leave the system resolver alone. Off by default, so the gateway's DNS is
+    # used as usual. Worth turning on when a gateway pushes a *public* resolver
+    # (1.1.1.1 and the like): it cannot resolve anything internal, so all it
+    # does is displace your own DNS for the duration of the connection.
+    ignore_dns: false
+
+  - name: Work (TLS only)
+    gateway: vpn.example.com
+    protocol: anyconnect
+    dtls: false
+
+    # An internal CA, if the gateway is not signed by one in the system trust
+    # store. Omit when it already is.
+    # cafile: /etc/ca-certificates/trust-source/anchors/corp-ca.crt
+
+    # Fixed interface name; omit to let the kernel choose (tun0, tun1, ...).
+    # interface: vpn0
+
+    # Path to vpnc-script, which installs routes and DNS.
+    # vpnc_script: /etc/vpnc/vpnc-script
+
+    # Must identify as an AnyConnect-compatible client or the gateway may serve
+    # its browser portal page instead of the XML login form. Change only if you
+    # know the gateway wants something specific.
+    # user_agent: AnyConnect-compatible OpenConnect VPN Agent
+
+    # linux-64 (default), linux, win, mac-intel, android, apple-ios.
+    # Can affect the dynamic access policy the gateway applies.
+    # reported_os: linux-64

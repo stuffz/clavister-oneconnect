@@ -1,0 +1,16 @@
+-std=c++17
+-Isrc
+-Wall
+-fPIC
+-DQT_NO_KEYWORDS
+-I/usr/include/libsecret-1
+-I/usr/include/gio-unix-2.0
+-I/usr/include/libproxy
+-I/usr/include/glib-2.0
+-I/usr/lib/glib-2.0/include
+-I/usr/include/p11-kit-1
+-I/usr/include/libxml2
+-isystem/usr/include/qt6
+-isystem/usr/include/qt6/QtCore
+-isystem/usr/include/qt6/QtGui
+-isystem/usr/include/qt6/QtWidgets

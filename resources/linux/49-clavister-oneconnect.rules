@@ -1,0 +1,41 @@
+/* Optional: connect without a polkit password prompt.
+ *
+ * NOT installed by default. The shipped policy asks for authentication
+ * (auth_admin_keep), which is the right default for a project someone else
+ * might install. This file is for a personal machine where being prompted on
+ * every connection is worse than the risk.
+ *
+ *   sudo install -Dm644 resources/linux/49-clavister-oneconnect.rules \
+ *        /etc/polkit-1/rules.d/49-clavister-oneconnect.rules
+ *
+ * To undo, delete that file. No daemon restart is needed; polkit reloads
+ * rules automatically.
+ *
+ * WHAT THIS GRANTS, PLAINLY
+ *
+ * Any process running as a member of `network` in an active local session can
+ * start oneconnect-helper without authenticating. That means it can create tun
+ * interfaces and run vpnc-script -- so it can add routes and change DNS.
+ *
+ * That is a real capability: a malicious process running as you could reroute
+ * your traffic. It is bounded by the helper refusing any environment variable
+ * outside its allowlist and executing the script with execl rather than a
+ * shell, so it is not a general "run anything as root" primitive. But it is
+ * not nothing, and it is worth deciding deliberately rather than by default.
+ *
+ * The conditions are deliberately narrow:
+ *   subject.local   -- not an SSH session
+ *   subject.active  -- the session at the console right now, not a background
+ *                      one left logged in
+ *   isInGroup       -- `network` rather than `wheel`, because this grants
+ *                      network configuration, not administration
+ */
+
+polkit.addRule(function (action, subject) {
+    if (action.id === "io.github.stuffz.oneconnect.helper" &&
+        subject.local &&
+        subject.active &&
+        subject.isInGroup("network")) {
+        return polkit.Result.YES;
+    }
+});
