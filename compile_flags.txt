@@ -14,3 +14,4 @@
 -isystem/usr/include/qt6/QtCore
 -isystem/usr/include/qt6/QtGui
 -isystem/usr/include/qt6/QtWidgets
+-isystem/usr/include/qt6/QtTest

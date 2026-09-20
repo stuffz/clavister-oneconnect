@@ -73,7 +73,8 @@ HELPER_OBJECTS = $(patsubst $(SRC_DIR)/%.cpp,$(OBJ_DIR)/%.o,$(HELPER_SOURCES))
 GUI_OBJECTS = $(patsubst $(SRC_DIR)/%.cpp,$(OBJ_DIR)/gui_%.o,$(GUI_SOURCES))
 DEPS = $(CLI_OBJECTS:.o=.d) $(GUI_OBJECTS:.o=.d) $(HELPER_OBJECTS:.o=.d)
 
-.PHONY: all cli gui helper clean install uninstall lint format run help
+.PHONY: all cli gui helper clean install uninstall lint format run help \
+	package test test-build image container-build container-test
 
 ifeq ($(HAVE_QT),yes)
 all: cli gui helper
@@ -136,10 +137,71 @@ uninstall:
 	rm -f $(DESTDIR)$(PREFIX)/bin/$(CLI_NAME) $(DESTDIR)$(PREFIX)/bin/$(GUI_NAME)
 	rm -f $(DESTDIR)$(PREFIX)/share/applications/$(GUI_NAME).desktop
 
+# makepkg rewrites pkgver= in whatever PKGBUILD it runs, so it runs on a copy
+# and the tracked file keeps its placeholder. The copy is told where the
+# repository is and packages its committed HEAD.
+PACKAGE_DIR = $(BUILD_BASE)/package
+
+package:
+	mkdir -p "$(PACKAGE_DIR)"
+	cp packaging/arch/PKGBUILD "$(PACKAGE_DIR)/"
+	cd "$(PACKAGE_DIR)" && ONECONNECT_REPO="$(CURDIR)" makepkg -fsi $(MAKEPKG_FLAGS)
+
+# ------------------------------------------------------------------- tests ---
+# CMake rather than this Makefile: QTest needs moc, and CMAKE_AUTOMOC plus
+# CTest is the whole of that rule. tests/ is its own CMake project so nothing
+# suggests the binaries build any other way than the rules above.
+CMAKE ?= cmake
+CTEST ?= ctest
+# Host and container need separate directories: a CMake cache records the
+# absolute path it was configured at, and the container's is /work.
+TEST_DIR ?= $(BUILD_BASE)/test
+CONTAINER_TEST_DIR = $(BUILD_BASE)/test-container
+
+# Qt6 adds this for itself, in the spelling GCC accepts. clangd is clang and
+# rejects it, so the database the editor reads loses it. The build keeps it.
+GCC_ONLY_FLAG = -mno-direct-extern-access
+
+# The compile database lands in tests/, not the root: clangd picks the nearest
+# one, so the tests get their moc include paths from it while src/ keeps
+# reading compile_flags.txt.
+test-build:
+	$(CMAKE) -S tests -B "$(TEST_DIR)" -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+	$(CMAKE) --build "$(TEST_DIR)" --parallel
+	sed 's/ $(GCC_ONLY_FLAG)//g' "$(TEST_DIR)/compile_commands.json" > tests/compile_commands.json
+
+test: test-build
+	$(CTEST) --test-dir "$(TEST_DIR)" --output-on-failure
+
+# --------------------------------------------------------------- container ---
+# Everything the build needs lives in the image; nothing installs on the host.
+DOCKER ?= docker
+IMAGE = clavister-oneconnect-build
+DOCKER_RUN = $(DOCKER) run --rm -u $(shell id -u):$(shell id -g) \
+	-e TEST_DIR="$(CONTAINER_TEST_DIR)" -v "$(CURDIR)":/work -w /work $(IMAGE)
+
+image:
+	$(DOCKER) build -t $(IMAGE) .
+
+container-build: image
+	$(DOCKER_RUN) make
+
+# /work is this directory bind mounted, so rewriting the paths makes the
+# database name the same files, generated moc output included.
+container-test: image
+	$(DOCKER_RUN) make test
+	sed 's|/work|$(CURDIR)|g' "$(CONTAINER_TEST_DIR)/compile_commands.json" | \
+		sed 's/ $(GCC_ONLY_FLAG)//g' > tests/compile_commands.json
+
 # Needs a compile_commands.json or compile_flags.txt; the latter is checked in.
-lint:
+# The tests go through the database test-build exports instead: each one
+# includes moc output that exists only in the test build tree.
+LINT_TESTS := $(shell find tests -name '*.cpp' | sort)
+
+lint: test-build
 	clang-tidy $(CLI_SOURCES) $(HELPER_SOURCES) -- $(CXXFLAGS)
 	@test "$(HAVE_QT)" = "yes" && clang-tidy $(GUI_SOURCES) -- $(GUI_CXXFLAGS) || true
+	clang-tidy --quiet -p tests $(LINT_TESTS)
 
 format:
 	clang-format -i $(shell find $(SRC_DIR) -name '*.hpp' -o -name '*.cpp')
@@ -164,6 +226,11 @@ help:
 	@echo "  format     run clang-format over src/"
 	@echo "  run        build and run the CLI with sudo, pass ARGS=\"--profile name\""
 	@echo "  run-gui    build and run the GUI with sudo -E"
+	@echo "  package    build and install the Arch package from committed HEAD"
+	@echo "  test       configure with CMake and run the CTest suite"
+	@echo "  image      build the build container image"
+	@echo "  container-build  build inside the container"
+	@echo "  container-test   run the CTest suite inside the container"
 	@echo ""
 	@echo "Variables:"
 	@echo "  DEBUG=1    debug build, no optimisation"

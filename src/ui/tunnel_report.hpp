@@ -34,8 +34,9 @@ public:
             Field("cstp", info.cstpCipher + Suffix(info.cstpCompression));
         }
 
-        Field("dtls", info.dtlsCipher.empty() ? "not established (TLS only)"
-                                              : info.dtlsCipher + Suffix(info.dtlsCompression));
+        Field("dtls", info.dtlsDisabled         ? "disabled after repeated failure (TLS only)"
+                      : info.dtlsCipher.empty() ? "not established (TLS only)"
+                                                : info.dtlsCipher + Suffix(info.dtlsCompression));
 
         std::cout << "\n";
         Heading("dns");

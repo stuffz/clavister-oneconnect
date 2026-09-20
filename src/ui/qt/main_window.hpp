@@ -198,10 +198,7 @@ private:
                 .arg(info.cstpCipher.empty() ? tr("n/a") : QString::fromStdString(info.cstpCipher));
         detail += "\n";
 
-        detail +=
-            tr("DTLS: %1")
-                .arg(info.dtlsCipher.empty() ? tr("not established - traffic is using TLS only")
-                                             : QString::fromStdString(info.dtlsCipher));
+        detail += tr("DTLS: %1").arg(DtlsStatus(info));
 
         if (lastStats.txBytes != 0 || lastStats.rxBytes != 0)
         {
@@ -252,6 +249,19 @@ private:
         }
 
         routeTable->resizeColumnsToContents();
+    }
+
+    static QString DtlsStatus(const TunnelInfo &info)
+    {
+        if (info.dtlsDisabled)
+        {
+            return tr("disabled after repeated failure - traffic is using TLS only");
+        }
+        if (info.dtlsCipher.empty())
+        {
+            return tr("not established - traffic is using TLS only");
+        }
+        return QString::fromStdString(info.dtlsCipher);
     }
 
     void ClearTunnel()

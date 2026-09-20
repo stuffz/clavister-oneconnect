@@ -42,6 +42,10 @@ struct TunnelInfo
 
     std::string cstpCipher;
     std::string dtlsCipher;
+
+    // Set once the watchdog gave up on DTLS for this session; an empty
+    // dtlsCipher alone cannot tell "never came up" from "turned off".
+    bool dtlsDisabled = false;
     std::string cstpCompression;
     std::string dtlsCompression;
 

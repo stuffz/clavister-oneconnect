@@ -3,6 +3,7 @@
 #include <cctype>
 #include <cstdarg>
 #include <cstdio>
+#include <ctime>
 #include <functional>
 #include <mutex>
 #include <string>
@@ -13,6 +14,7 @@
 #include <openconnect.h>
 
 #include "core/auth_prompter.hpp"
+#include "core/dtls_watchdog.hpp"
 #include "core/logger.hpp"
 #include "core/redactor.hpp"
 #include "core/tunnel_info.hpp"
@@ -199,6 +201,8 @@ public:
         return true;
     }
 
+    // Returns openconnect's verdict: -EINTR after Cancel(), -EPERM when the
+    // gateway no longer accepts the cookie, another negative errno otherwise.
     int RunMainLoop()
     {
         if (vpninfo == nullptr)
@@ -206,7 +210,21 @@ public:
             return -1;
         }
 
-        return openconnect_mainloop(vpninfo, options.reconnectTimeout, options.reconnectInterval);
+        for (;;)
+        {
+            const int result =
+                openconnect_mainloop(vpninfo, options.reconnectTimeout, options.reconnectInterval);
+
+            // 0 means paused, and only the DTLS watchdog pauses. Re-entering
+            // makes openconnect reconnect with the cookie it still holds: a new
+            // CONNECT, and with it a DTLS session the gateway will answer.
+            if (result != 0 || !reconnectPending)
+            {
+                return result;
+            }
+
+            reconnectPending = false;
+        }
     }
 
     // Async-signal-safe: only writes a byte to the pipe openconnect is polling.
@@ -406,6 +424,9 @@ private:
         TunnelInfo refreshed = TunnelInfo::FromVpnInfo(vpninfo);
         refreshed.dnsIgnored = options.ignorePushedDns;
 
+        WatchDtls(!refreshed.dtlsCipher.empty());
+        refreshed.dtlsDisabled = dtlsWatchdog.Disabled();
+
         TunnelStats counters;
         if (raw != nullptr)
         {
@@ -439,6 +460,28 @@ private:
         if (infoHandler)
         {
             infoHandler(refreshed, counters);
+        }
+    }
+
+    void WatchDtls(bool established)
+    {
+        switch (dtlsWatchdog.Observe(established, static_cast<std::int64_t>(time(nullptr))))
+        {
+        case DtlsAction::None:
+            return;
+
+        case DtlsAction::Reconnect:
+            LOG_INFO("DTLS lost; reconnecting the session to restore it");
+            reconnectPending = true;
+            SendCommand(OC_CMD_PAUSE);
+            return;
+
+        case DtlsAction::Disable:
+            LOG_ERROR("DTLS lost again within " +
+                      std::to_string(DtlsWatchdog::ReconnectWindowSeconds / 60) +
+                      " minutes; disabled for this session, traffic stays on TLS");
+            openconnect_disable_dtls(vpninfo);
+            return;
         }
     }
 
@@ -719,6 +762,8 @@ private:
     PrivilegedClient helper;
     std::string resolvedInterface;
     int appliedMtu = 0;
+    DtlsWatchdog dtlsWatchdog;
+    bool reconnectPending = false;
     std::string pendingPassword;
     bool usedStoredPassword = false;
     int formsSeen = 0;

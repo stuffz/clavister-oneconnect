@@ -62,8 +62,40 @@ Two things follow for password storage:
 - "The password is in the first form" is false here; anything keying on form position silently misses it.
 - The one-time code arrives as `OC_FORM_OPT_TEXT`, not `OC_FORM_OPT_PASSWORD` — so requiring password *type* excludes the OTP on this gateway, and the name-based exclusion in `IsStorablePassword()` covers gateways that send a code as a password field.
 
+## DTLS dies at the rekey, and the gateway does not notice
+
+Seen three times against a NetWall 510 in September 2026. The gateway asks for an in-place DTLS rehandshake with `X-DTLS-Rekey-Method: ssl`, then answers the rehandshake it asked for with a TLS fatal alert:
+
+```
+DTLS rekey due
+DTLS handshake failed: A TLS fatal alert has been received.
+DTLS handshake failed: Resource temporarily unavailable, try again.   (every 72 s, forever)
+```
+
+openconnect does the only correct thing with a fatal alert, closes DTLS and sends over TLS. The gateway keeps its half of the association: the OneConnect status page still reads `CONNECTED (UDP/DTLS)`, and return traffic is pushed into a UDP flow the client has closed. Outbound is accepted, nothing comes back, and CSTP DPD is answered on the TLS socket the whole time, so neither end declares the tunnel dead. openconnect retries the dead `X-DTLS-Session-ID` every attempt period and never escalates; only a new CONNECT hands out a session ID the gateway will answer.
+
+The 72 s is openconnect's arithmetic: a 12 s handshake deadline plus our 60 s `dtlsAttemptPeriod`.
+
+The interval belongs to the gateway and has already changed once, so nothing should key on it. The client does not print the CONNECT headers, so these come from when the rekeys fired: the first two incidents rekeyed DTLS 28800 s (8h) after it came up, with the CSTP rekey 200 s ahead of it; the session that connected 2026-09-19 rekeyed at 115200 s (32h), CSTP at 115000 s, the same 200 s lead.
+
+`DtlsWatchdog` is the workaround. When a DTLS cipher that was reported goes away for longer than a handshake could take, the client pauses the mainloop and re-enters it, which makes openconnect reconnect with the cookie it still holds. A second drop inside 30 minutes disables DTLS for the session instead of flapping the tunnel. `dtls: false` in the profile sidesteps the whole thing at the cost of TCP-over-TCP; the CSTP rekey at the same mark works.
+
+Verified on 2026-09-20, the first rekey the watchdog was live for:
+
+```
+09:26:31 [INFO ] DTLS rekey due
+09:26:31 [ERROR] DTLS handshake failed: A TLS fatal alert has been received.
+09:26:47 [INFO ] DTLS lost; reconnecting the session to restore it
+09:26:47 [INFO ] Caller paused the connection
+09:26:47 [INFO ] Got CONNECT response: HTTP/1.1 200 CONNECTED
+09:26:47 [INFO ] Established DTLS connection (using GnuTLS). Ciphersuite (DTLS1.2)-(ECDHE-RSA)-(AES-128-GCM).
+```
+
+16 s from the alert to the reconnect: the 15 s grace plus a poll tick. The tunnel came back on the same `tun0` with no re-auth, held one tun fd, and was still carrying traffic over DTLS four hours later.
+
 ## Consequences for this client
 
 - Always call `openconnect_set_hostname()` with the FQDN and never resolve it ourselves.
 - Multi-node affinity, if ever added, must use `--resolve` semantics rather than substituting the address.
 - The RADIUS challenge arrives as a second form after the first succeeds; caching form values across attempts would replay a spent one-time code, so OTP fields are never persisted.
+- DPD is not liveness against this gateway. A tunnel can answer DPD indefinitely while forwarding nothing; the DTLS state is the signal that something changed.

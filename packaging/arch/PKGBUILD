@@ -1,11 +1,17 @@
 # Maintainer: stuffz
 #
 # Build and install:
-#   cd packaging/arch && makepkg -si
+#   make package
+#
+# Sources the local repository rather than a remote, so it packages what is
+# committed on this machine and needs no network. pkgver below is a
+# placeholder; pkgver() sets the real one at build time, and `make package`
+# runs makepkg on a copy so this file is not rewritten. Running makepkg here
+# directly still works, but leaves the placeholder overwritten.
 
 pkgname=clavister-oneconnect-git
 _pkgname=clavister-oneconnect
-pkgver=r1
+pkgver=r0.0000000
 pkgrel=1
 pkgdesc="VPN client for Clavister OneConnect gateways, built on libopenconnect"
 arch=('x86_64')
@@ -18,7 +24,10 @@ makedepends=('git' 'gcc' 'make' 'pkgconf')
 optdepends=('polkit: graphical password prompt for the GUI launcher')
 provides=("$_pkgname")
 conflicts=("$_pkgname")
-source=("$_pkgname::git+file://$(realpath ../..)")
+
+# `make package` runs from a copy under build/ and passes the repository path
+# in; the fallback is for makepkg run in place.
+source=("$_pkgname::git+file://${ONECONNECT_REPO:-$(realpath ../..)}")
 sha256sums=('SKIP')
 
 pkgver() {

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <atomic>
+#include <cerrno>
 #include <functional>
 #include <memory>
 #include <string>
@@ -162,7 +163,7 @@ private:
                 StartRefreshTimer();
             });
 
-        session->RunMainLoop();
+        const int result = session->RunMainLoop();
 
         PostToGui(
             [this]
@@ -171,7 +172,20 @@ private:
             });
 
         session.reset();
-        SetState(VpnState::Disconnected, "Disconnected");
+        SetState(VpnState::Disconnected, DisconnectMessage(result));
+    }
+
+    static std::string DisconnectMessage(int result)
+    {
+        if (result == -EINTR)
+        {
+            return "Disconnected";
+        }
+        if (result == -EPERM)
+        {
+            return "The gateway ended the session - sign in again";
+        }
+        return "Connection lost - see the log for details";
     }
 
     void StartRefreshTimer()

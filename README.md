@@ -8,7 +8,7 @@ Two binaries share one connection store: `oneconnect` (console, runs as root) an
 
 ## Install
 
-- Arch: `cd packaging/arch && makepkg -si`
+- Arch: `make package` (runs `makepkg -si` on a copy of `packaging/arch/PKGBUILD`, so the tracked file is not rewritten)
 - Ubuntu 24.04: `packaging/debian/build-deb.sh` builds a `.deb` into `dist/` (needs docker)
 
 ## Building
@@ -25,6 +25,8 @@ C++17, `libopenconnect`, `yaml-cpp`, `libsecret`, and Qt 6 Widgets for the GUI. 
 make                # both binaries -> build/release/
 make cli            # console client only, no Qt needed
 make install        # into $PREFIX (default /usr/local)
+make test           # QTest suite under tests/, via CMake and CTest
+make container-test # the same inside the build image; nothing installs on the host
 ```
 
 `vpnc-script` installs routes and DNS once the tunnel is up. Distros place it differently (`/etc/vpnc/` on Arch and Fedora, `/usr/share/vpnc-scripts/` on Debian and Ubuntu); the client searches both at connect time.
@@ -48,7 +50,7 @@ Logging is always on, at `~/.local/state/clavister-oneconnect/oneconnect.log`. `
 
 ## Documentation
 
-- [docs/CLAVISTER.md](docs/CLAVISTER.md) — gateway quirks: the Host Name trap, the plasma-nm bug, the three-form auth exchange
+- [docs/CLAVISTER.md](docs/CLAVISTER.md) — gateway quirks: the Host Name trap, the plasma-nm bug, the three-form auth exchange, the DTLS rekey that strands the tunnel
 - [docs/PRIVILEGE.md](docs/PRIVILEGE.md) — the unprivileged GUI and the helper split
 
 ## Licence
