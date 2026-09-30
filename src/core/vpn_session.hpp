@@ -67,7 +67,7 @@ public:
     using InfoHandler = std::function<void(const TunnelInfo &, const TunnelStats &)>;
 
     explicit VpnSession(AuthPrompter &authPrompter)
-        : prompter(authPrompter), vpninfo(nullptr), cancelPipe{-1, -1}
+        : prompter(authPrompter), vpninfo(nullptr)
     {
     }
 
@@ -122,9 +122,14 @@ public:
             openconnect_set_reported_os(vpninfo, options.reportedOs.c_str());
         }
 
-        if (pipe(cancelPipe) == 0)
+        // Not openconnect_set_cancel_fd(): on that legacy fd openconnect
+        // never reads the byte, so *any* write -- the GUI's periodic
+        // OC_CMD_STATS included -- aborts the tunnel. This pipe is read
+        // command by command, and vpninfo owns both ends.
+        const int writeFd = openconnect_setup_cmd_pipe(vpninfo);
+        if (writeFd >= 0)
         {
-            openconnect_set_cancel_fd(vpninfo, cancelPipe[0]);
+            commandFd = writeFd;
         }
 
         if (!options.caFile.empty())
@@ -174,6 +179,15 @@ public:
                 LOG_ERROR("Could not save the password: " + SecretStore::Describe());
             }
             pendingPassword.clear();
+        }
+
+        // Before CSTP, not after: the polkit prompt can take the user longer
+        // than twice the gateway's DPD interval, and a mainloop that starts
+        // that late declares the peer dead on its first pass.
+        if (UseHelper() && !helper.Start(options.helperPath, options.vpncScript))
+        {
+            LOG_ERROR("Privileged helper failed to start: " + helper.LastError());
+            return false;
         }
 
         if (openconnect_make_cstp_connection(vpninfo) != 0)
@@ -284,12 +298,6 @@ private:
 
         if (viaHelper)
         {
-            if (!helper.Start(options.helperPath, options.vpncScript))
-            {
-                LOG_ERROR("Privileged helper failed to start: " + helper.LastError());
-                return false;
-            }
-
             tunFd = helper.SetupTun(ifname);
             if (tunFd < 0)
             {
@@ -366,9 +374,9 @@ private:
 
     void SendCommand(char command)
     {
-        if (cancelPipe[1] >= 0)
+        if (commandFd >= 0)
         {
-            const ssize_t written = write(cancelPipe[1], &command, 1);
+            const ssize_t written = write(commandFd, &command, 1);
             static_cast<void>(written);
         }
     }
@@ -386,19 +394,13 @@ private:
 
         helper.Stop();
 
+        // Cleared first: openconnect_vpninfo_free() closes the pipe.
+        commandFd = -1;
+
         if (vpninfo != nullptr)
         {
             openconnect_vpninfo_free(vpninfo);
             vpninfo = nullptr;
-        }
-
-        for (int &fd : cancelPipe)
-        {
-            if (fd >= 0)
-            {
-                close(fd);
-                fd = -1;
-            }
         }
     }
 
@@ -751,7 +753,7 @@ private:
     AuthPrompter &prompter;
     SessionOptions options;
     struct openconnect_info *vpninfo;
-    int cancelPipe[2];
+    int commandFd = -1;
 
     // Written on the mainloop thread, read from anywhere.
     mutable std::mutex infoMutex;
