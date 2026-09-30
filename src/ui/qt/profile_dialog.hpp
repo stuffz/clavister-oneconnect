@@ -124,6 +124,11 @@ public:
 
         connect(buttons, &QDialogButtonBox::accepted, this, &ProfileDialog::Validate);
         connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
+
+        // Sized here so that show() skips adjustSize(), which caps a window at
+        // two thirds of the screen height and so clips the wrapped hints.
+        const int width = qMax(minimumWidth(), sizeHint().width());
+        resize(width, layout->totalHeightForWidth(width));
     }
 
     const ConnectionProfile &Profile() const
