@@ -35,6 +35,12 @@ struct ConnectionProfile
         return !name.empty() && !gateway.empty();
     }
 
+    // The keychain entry is keyed on the saved name.
+    std::string SecretAccount() const
+    {
+        return name;
+    }
+
     SessionOptions ToSessionOptions() const
     {
         SessionOptions options;
@@ -47,7 +53,7 @@ struct ConnectionProfile
         options.username = username;
         options.rememberPassword = rememberPassword;
         options.ignorePushedDns = ignorePushedDns;
-        options.secretAccount = name;
+        options.secretAccount = SecretAccount();
         options.userAgent = userAgent;
         options.reportedOs = reportedOs;
         options.reconnectTimeout = reconnectTimeout;

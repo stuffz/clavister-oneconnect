@@ -6,6 +6,7 @@
 #include <QDialogButtonBox>
 #include <QFileDialog>
 #include <QFormLayout>
+#include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMessageBox>
@@ -13,6 +14,7 @@
 #include <QVBoxLayout>
 
 #include "core/connection_profile.hpp"
+#include "platform/secret_store.hpp"
 #include "platform/vpnc_script.hpp"
 
 class ProfileDialog : public QDialog
@@ -99,7 +101,7 @@ public:
             tr("Stores only the password, in the desktop keychain (KWallet or "
                "gnome-keyring). One-time codes are never saved -- a stored code is "
                "both spent and a weakening of two-factor authentication."));
-        form->addRow(QString(), rememberCheck);
+        form->addRow(QString(), BuildRememberRow());
 
         ignoreDnsCheck = new QCheckBox(tr("Do not let this connection change my DNS"), this);
         ignoreDnsCheck->setChecked(profile.ignorePushedDns);
@@ -156,6 +158,41 @@ private:
         rowLayout->addWidget(caFileEdit);
 
         return row;
+    }
+
+    QWidget *BuildRememberRow()
+    {
+        auto *row = new QWidget(this);
+        auto *rowLayout = new QHBoxLayout(row);
+        rowLayout->setContentsMargins(0, 0, 0, 0);
+        rowLayout->addWidget(rememberCheck);
+        rowLayout->addStretch();
+
+        // A new connection has nothing stored under its name yet.
+        if (!profile.name.empty())
+        {
+            auto *forget = new QPushButton(tr("Forget saved password"), row);
+            connect(forget, &QPushButton::clicked, this, &ProfileDialog::ForgetPassword);
+            rowLayout->addWidget(forget);
+        }
+
+        return row;
+    }
+
+    // Keyed on the name as saved, not as edited: that is where the password is.
+    void ForgetPassword()
+    {
+        if (!SecretStore::Clear(profile.SecretAccount()))
+        {
+            QMessageBox::warning(this, tr("Keychain"),
+                                 tr("Could not remove the saved password: %1")
+                                     .arg(QString::fromStdString(SecretStore::Describe())));
+            return;
+        }
+
+        QMessageBox::information(this, tr("Keychain"),
+                                 tr("No password is saved for '%1' any more.")
+                                     .arg(QString::fromStdString(profile.name)));
     }
 
     void Validate()
