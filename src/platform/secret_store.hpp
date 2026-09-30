@@ -15,7 +15,8 @@
 // A root process cannot reach the user's keychain: D-Bus authenticates its
 // peer by uid, and a user's session bus rejects uid 0 outright, whatever the
 // socket permissions say. So every operation runs in a forked child that has
-// dropped to the invoking user's uid, and reports back over a pipe.
+// dropped to the invoking user's uid, and reports back over a pipe. The
+// console client is single-threaded, which is what makes that fork safe.
 class SecretStore
 {
 public:
@@ -184,8 +185,15 @@ private:
         return "unix:path=" + path;
     }
 
-    // Runs `work` in a forked child that has dropped to the target uid, and
-    // returns whatever the child wrote. The parent never touches libsecret.
+    // Runs `work` as the target uid and returns what it produced. As root,
+    // that means a forked child that has dropped privileges, so the root
+    // process never touches libsecret.
+    //
+    // Unprivileged, `work` runs in-process: we already are the target uid, and
+    // forking is unsafe there. The GUI is multithreaded, and a child forked
+    // from it inherits every lock another thread held at that instant, with
+    // no thread left to release them -- libsecret in the child then blocks
+    // forever on a GLib or malloc futex, and the auth prompt never appears.
     template <typename Work>
     static std::string RunAsUser(Work work)
     {
@@ -195,6 +203,12 @@ private:
         if (uid == static_cast<uid_t>(-1) || bus.empty())
         {
             return {};
+        }
+
+        if (geteuid() != 0)
+        {
+            std::string out;
+            return work(out) ? out : std::string{};
         }
 
         int pipeFds[2] = {-1, -1};
