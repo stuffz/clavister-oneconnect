@@ -90,21 +90,25 @@ public:
                     .empty();
     }
 
-    static void Clear(const std::string &account)
+    // True when no password is stored afterwards, whether or not one was.
+    static bool Clear(const std::string &account)
     {
-        RunAsUser(
-            [&account](std::string &out)
-            {
-                GError *error = nullptr;
-                secret_password_clear_sync(Schema(), nullptr, &error, "service", ServiceName,
-                                           "account", account.c_str(), nullptr);
-                if (error != nullptr)
-                {
-                    g_error_free(error);
-                }
-                out = "1";
-                return true;
-            });
+        return !RunAsUser(
+                    [&account](std::string &out)
+                    {
+                        GError *error = nullptr;
+                        secret_password_clear_sync(Schema(), nullptr, &error, "service",
+                                                   ServiceName, "account", account.c_str(),
+                                                   nullptr);
+                        if (error != nullptr)
+                        {
+                            g_error_free(error);
+                            return false;
+                        }
+                        out = "1";
+                        return true;
+                    })
+                    .empty();
     }
 
 private:

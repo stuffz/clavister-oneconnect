@@ -57,10 +57,13 @@ auth form 2  name='password'  label='Password:'  type=2 (OC_FORM_OPT_PASSWORD)
 auth form 3  name='otp'       label='OTP:'       type=1 (OC_FORM_OPT_TEXT)
 ```
 
-Two things follow for password storage:
+The gateway checks each form as it arrives: a wrong password gets `HTTP/1.1 401 Unauthorized` straight after form 2, and form 3 is only sent once the password passed. A 401 after form 3 is the one-time code.
+
+Three things follow for password storage:
 
 - "The password is in the first form" is false here; anything keying on form position silently misses it.
 - The one-time code arrives as `OC_FORM_OPT_TEXT`, not `OC_FORM_OPT_PASSWORD` — so requiring password *type* excludes the OTP on this gateway, and the name-based exclusion in `IsStorablePassword()` covers gateways that send a code as a password field.
+- A failed login forgets the stored password only when no later form showed that the gateway accepted it (`StoredPasswordTracker`). A rejected OTP keeps it; a rejected password is not retried into a lockout.
 
 ## DTLS dies at the rekey, and the gateway does not notice
 

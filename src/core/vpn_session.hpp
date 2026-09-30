@@ -17,6 +17,7 @@
 #include "core/dtls_watchdog.hpp"
 #include "core/logger.hpp"
 #include "core/redactor.hpp"
+#include "core/stored_password.hpp"
 #include "core/tunnel_info.hpp"
 #include "core/vpnc_environment.hpp"
 #include "platform/privileged_client.hpp"
@@ -151,17 +152,25 @@ public:
 
             // Retrying a stale stored password on every connect is how an
             // account gets locked out.
-            if (usedStoredPassword && !options.secretAccount.empty())
+            if (storedPassword.ShouldForget() && !options.secretAccount.empty())
             {
                 LOG_INFO("Clearing the stored password after a failed login");
-                SecretStore::Clear(options.secretAccount);
+                if (!SecretStore::Clear(options.secretAccount))
+                {
+                    LOG_ERROR("Could not clear the stored password: " + SecretStore::Describe());
+                }
+            }
+            else if (storedPassword.Used())
+            {
+                LOG_INFO("Keeping the stored password: the gateway accepted it, so a later "
+                         "step such as the one-time code failed");
             }
 
             pendingPassword.clear();
             return false;
         }
 
-        if (options.rememberPassword && pendingPassword.empty() && !usedStoredPassword)
+        if (options.rememberPassword && pendingPassword.empty() && !storedPassword.Used())
         {
             LOG_ERROR("Remember password is enabled, but no field in the auth form "
                       "qualified as the login password -- nothing was saved. The field "
@@ -556,6 +565,7 @@ private:
         }
 
         ++formsSeen;
+        storedPassword.OnForm(FieldsOf(form));
 
         // A field the storability rule rejects is otherwise invisible.
         if (options.rememberPassword || Logger::Instance().DebugMode())
@@ -610,6 +620,24 @@ private:
         return OC_FORM_RESULT_OK;
     }
 
+    FormFields FieldsOf(const struct oc_auth_form *form) const
+    {
+        for (const struct oc_form_opt *opt = form->opts; opt != nullptr; opt = opt->next)
+        {
+            if ((opt->flags & OC_FORM_OPT_IGNORE) != 0 || opt->type != OC_FORM_OPT_PASSWORD)
+            {
+                continue;
+            }
+
+            if (!LooksLikeSecondFactor(Str(opt->name)) && !LooksLikeSecondFactor(Str(opt->label)))
+            {
+                return FormFields::AsksForPassword;
+            }
+        }
+
+        return FormFields::NoPassword;
+    }
+
     // Field names and types only -- never values.
     void LogFormFields(const struct oc_auth_form *form) const
     {
@@ -635,7 +663,7 @@ private:
             {
                 LOG_INFO("Using password from the keychain");
                 openconnect_set_option_value(opt, saved.c_str());
-                usedStoredPassword = true;
+                storedPassword.OnStoredPasswordUsed();
                 return true;
             }
         }
@@ -767,7 +795,7 @@ private:
     DtlsWatchdog dtlsWatchdog;
     bool reconnectPending = false;
     std::string pendingPassword;
-    bool usedStoredPassword = false;
+    StoredPasswordTracker storedPassword;
     int formsSeen = 0;
     bool storablePasswordSeen = false;
 };

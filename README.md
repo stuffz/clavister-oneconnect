@@ -40,7 +40,7 @@ sudo oneconnect --gateway vpn.example.com
 oneconnect --list                       # what is saved; --help for the rest
 ```
 
-Connections live in `~/.config/clavister-oneconnect/connections.yaml`, shared by both binaries — [connections.yaml.example](connections.yaml.example) documents every field. Passwords go to the desktop keychain when *Remember password* is on; one-time codes are never stored.
+Connections live in `~/.config/clavister-oneconnect/connections.yaml`, shared by both binaries — [connections.yaml.example](connections.yaml.example) documents every field. Passwords go to the desktop keychain when *Remember password* is on; one-time codes are never stored. A stored password is forgotten when the gateway rejects it, not when only the one-time code fails.
 
 In the route report, `missing` means the gateway pushed a route that `vpnc-script` failed to install, and `unexpected` is a route on the tunnel interface that was never pushed (often legitimate). The `/32` host route pinning the gateway to your physical interface is outside the tunnel interface and not listed.
 

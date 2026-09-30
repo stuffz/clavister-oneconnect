@@ -24,7 +24,7 @@ enable_testing()
 
 set(SRC "${CMAKE_CURRENT_SOURCE_DIR}/../src")
 
-set(CORE_TESTS dtls_watchdog ip4 redactor vpnc_environment)
+set(CORE_TESTS dtls_watchdog ip4 redactor stored_password vpnc_environment)
 set(PLATFORM_TESTS tun_protocol)
 
 function(add_unit_test directory name)
