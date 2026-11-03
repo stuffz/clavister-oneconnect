@@ -4,8 +4,10 @@
 #   packaging/debian/build-deb.sh
 #
 # The package must be compiled against noble's glibc, yaml-cpp and Qt, so the
-# build runs in ubuntu:24.04 regardless of the host distribution. The .deb
-# lands in dist/, which `make clean` leaves alone.
+# build runs in ubuntu:24.04 regardless of the host distribution. Building on
+# the oldest supported release keeps the package installable on later ones
+# (26.04 included), and it survives a release upgrade. The .deb lands in dist/,
+# which `make clean` leaves alone.
 set -eu
 
 REPO="$(cd "$(dirname "$0")/../.." && pwd)"

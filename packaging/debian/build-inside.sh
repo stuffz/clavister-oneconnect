@@ -71,6 +71,13 @@ cd /shlibs
 DEPS="$(dpkg-shlibdeps -O "$PKG/usr/bin/oneconnect" "$PKG/usr/bin/oneconnect-gui" \
     "$PKG/usr/lib/oneconnect/oneconnect-helper" 2>/dev/null | sed 's/^shlibs:Depends=//')"
 
+# Later releases dropped the t64 suffix noble gave these packages (26.04 ships
+# libqt6widgets6, not libqt6widgets6t64) without providing the old name. The
+# sonames are unchanged, so accept either; otherwise a release upgrade cannot
+# satisfy Depends and removes the package.
+DEPS="$(printf '%s' "$DEPS" |
+    sed -E 's/(^|[,|] )([a-z0-9][a-z0-9.+-]*)t64( \([^)]*\))?/\1\2t64\3 | \2\3/g')"
+
 mkdir -p "$PKG/DEBIAN"
 cat > "$PKG/DEBIAN/control" <<EOF
 Package: clavister-oneconnect

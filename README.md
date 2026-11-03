@@ -9,7 +9,7 @@ Two binaries share one connection store: `oneconnect` (console, runs as root) an
 ## Install
 
 - Arch: `make package` (runs `makepkg -si` on a copy of `packaging/arch/PKGBUILD`, so the tracked file is not rewritten)
-- Ubuntu 24.04: `packaging/debian/build-deb.sh` builds a `.deb` into `dist/` (needs docker)
+- Ubuntu 24.04 and 26.04: `packaging/debian/build-deb.sh` builds one `.deb` for both into `dist/` (needs docker)
 
 ## Building
 

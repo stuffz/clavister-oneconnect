@@ -1,0 +1,4 @@
+# Linux-only project: keep LF even where core.autocrlf is on. CRLF breaks the
+# packaging scripts (`set: Illegal option -`) and the installed .desktop,
+# polkit and udev files.
+* text=auto eol=lf
